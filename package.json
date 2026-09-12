@@ -1,0 +1,17 @@
+{
+  "name": "dazzling-threads",
+  "version": "1.0.0",
+  "description": "Dazzling Threads (Dulha Dulhan House) - Luxury Indian Bridal & Ethnic Fashion E-Commerce Platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "seed": "npm --prefix server run seed",
+    "build": "npm --prefix client run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
