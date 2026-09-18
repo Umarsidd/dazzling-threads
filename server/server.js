@@ -1,7 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -23,8 +21,7 @@ import cartRoutes from './routes/cartRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 
 // Load environment variables
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-dotenv.config({ path: path.join(projectRoot, '.env') });
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -106,34 +103,30 @@ app.use('/api/*', (req, res) => {
 // Centralized error handler
 app.use(errorHandler);
 
-// Connect DB and launch the local server. Netlify imports the exported app
-// through netlify/functions/api.js instead of opening a persistent listener.
+// Connect DB and launch server
 const startServer = async () => {
   try {
     await connectDB();
 
-    if (process.env.NETLIFY !== 'true') {
-      const Product = (await import('./models/Product.js')).default;
-      const productCount = await Product.countDocuments();
-      if (productCount === 0) {
-        console.log('[Dazzling Threads] Database is empty. Seeding initial luxury collection...');
-        const { runSeed } = await import('./seed/seed.js');
-        await runSeed();
-      }
-
-      app.listen(PORT, () => {
-        console.log(`[Dazzling Threads Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-        console.log(`[API Live] http://localhost:${PORT}/api/health`);
-      });
+    // Auto-seed initial catalog if database is empty
+    const Product = (await import('./models/Product.js')).default;
+    const productCount = await Product.countDocuments();
+    if (productCount === 0) {
+      console.log('[Dazzling Threads] Database is empty. Seeding initial luxury collection...');
+      const { runSeed } = await import('./seed/seed.js');
+      await runSeed();
     }
+
+    app.listen(PORT, () => {
+      console.log(`[Dazzling Threads Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+      console.log(`[API Live] http://localhost:${PORT}/api/health`);
+    });
   } catch (error) {
     console.error('[Server Error] Failed to start:', error);
     process.exit(1);
   }
 };
 
-if (process.env.NETLIFY !== 'true') {
-  startServer();
-}
+startServer();
 
 export default app;
