@@ -1,41 +1,51 @@
 import mongoose from 'mongoose';
 
 let memoryServer = null;
+let connectionPromise = null;
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
   const uri = process.env.MONGODB_URI;
 
-  try {
-    if (uri && !uri.includes('<username>') && !uri.includes('example.mongodb.net')) {
-      const conn = await mongoose.connect(uri, {
+  if (uri && !uri.includes('<username>') && !uri.includes('example.mongodb.net')) {
+    connectionPromise = mongoose.connect(uri, {
         serverSelectionTimeoutMS: 5000,
+      })
+      .then((conn) => {
+        console.log(`[DB] Connected to MongoDB Atlas: ${conn.connection.host}`);
+        return conn;
+      })
+      .catch((error) => {
+        connectionPromise = null;
+        throw error;
       });
-      console.log(`[DB] Connected to MongoDB Atlas: ${conn.connection.host}`);
-      return conn;
-    } else {
-      console.log('[DB] No MongoDB Atlas URI provided. Initializing local in-memory database engine for seamless development...');
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      memoryServer = await MongoMemoryServer.create();
-      const memUri = memoryServer.getUri();
-      const conn = await mongoose.connect(memUri);
-      console.log(`[DB] Connected to Local In-Memory MongoDB engine: ${conn.connection.host}`);
-      return conn;
-    }
+
+    return connectionPromise;
+  }
+
+  if (process.env.NETLIFY === 'true') {
+    throw new Error('MONGODB_URI is required in the Netlify environment.');
+  }
+
+  try {
+    console.log('[DB] No MongoDB Atlas URI provided. Initializing local in-memory database engine for seamless development...');
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    memoryServer = await MongoMemoryServer.create();
+    const memUri = memoryServer.getUri();
+    const conn = await mongoose.connect(memUri);
+    console.log(`[DB] Connected to Local In-Memory MongoDB engine: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
     console.error(`[DB] Error connecting to MongoDB: ${error.message}`);
-    // If Atlas fails (e.g. network IP restriction), fallback gracefully to in-memory instance
-    try {
-      console.log('[DB] Falling back to In-Memory MongoDB engine...');
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      memoryServer = await MongoMemoryServer.create();
-      const memUri = memoryServer.getUri();
-      const conn = await mongoose.connect(memUri);
-      console.log(`[DB] Connected to Fallback Local MongoDB engine: ${conn.connection.host}`);
-      return conn;
-    } catch (fallbackError) {
-      console.error('[DB] Fatal error initializing database:', fallbackError);
-      process.exit(1);
-    }
+    console.error('[DB] Fatal error initializing local database:', error);
+    throw error;
   }
 };
 
